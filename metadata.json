@@ -1,0 +1,5 @@
+{
+  "name": "Plant-MD: AI Disease Detection",
+  "description": "An AI-powered application to help gardeners and farmers identify plant diseases from images. Upload a photo of a plant leaf, and the app will analyze it to detect diseases, suggest treatments, and provide a confidence score.",
+  "requestFramePermissions": []
+}
