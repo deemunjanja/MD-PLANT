@@ -1,12 +1,13 @@
+import { GoogleGenAI, Type } from "@google/genai";
 
 const analysisSchema = {
-  type: "OBJECT",
+  type: Type.OBJECT,
   properties: {
-    isHealthy: { type: "BOOLEAN" },
-    diseaseName: { type: "STRING" },
-    description: { type: "STRING" },
-    treatment: { type: "STRING" },
-    confidenceScore: { type: "NUMBER" },
+    isHealthy: { type: Type.BOOLEAN, description: "Whether the plant is healthy." },
+    diseaseName: { type: Type.STRING, description: "The common name of the disease, or 'Healthy' if no disease is detected." },
+    description: { type: Type.STRING, description: "A detailed description of the plant's condition or the identified disease." },
+    treatment: { type: Type.STRING, description: "Actionable steps for treatment. If the plant is healthy, provide general care tips." },
+    confidenceScore: { type: Type.NUMBER, description: "A confidence score from 0 to 100 for the accuracy of the analysis." },
   },
   required: ['isHealthy', 'diseaseName', 'description', 'treatment', 'confidenceScore'],
 };
@@ -23,7 +24,13 @@ Return the response in the specified JSON format.
 
 export const handler = async (event) => {
   if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, body: 'Method Not Allowed' };
+    return { statusCode: 405, body: JSON.stringify({ message: 'Method Not Allowed' }) };
+  }
+
+  const API_KEY = process.env.API_KEY;
+  if (!API_KEY) {
+      console.error("API_KEY environment variable not set in Netlify function.");
+      return { statusCode: 500, body: JSON.stringify({ message: 'Server configuration error: API key not found.' })};
   }
 
   try {
@@ -32,48 +39,23 @@ export const handler = async (event) => {
       return { statusCode: 400, body: JSON.stringify({ message: 'Missing image data' })};
     }
 
-    const API_KEY = process.env.API_KEY;
-    if (!API_KEY) {
-        console.error("API_KEY environment variable not set in Netlify function.");
-        return { statusCode: 500, body: JSON.stringify({ message: 'Server configuration error: API key not found.' })};
-    }
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
 
-    const model = 'gemini-2.5-flash';
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${API_KEY}`;
-
-    const requestBody = {
-      contents: [{
-        parts: [
-          { inline_data: { mime_type: 'image/jpeg', data: base64Image } },
-          { text: prompt }
-        ]
-      }],
-      generation_config: {
-        response_mime_type: "application/json",
-        response_schema: analysisSchema,
-      }
-    };
-
-    const apiResponse = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody),
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: {
+            parts: [
+                { inlineData: { mimeType: 'image/jpeg', data: base64Image } },
+                { text: prompt }
+            ]
+        },
+        config: {
+            responseMimeType: "application/json",
+            responseSchema: analysisSchema,
+        }
     });
 
-    if (!apiResponse.ok) {
-      const errorBody = await apiResponse.text();
-      console.error('Gemini API Error:', errorBody);
-      return { statusCode: apiResponse.status, body: JSON.stringify({ message: `Gemini API error: ${errorBody}` }) };
-    }
-
-    const responseData = await apiResponse.json();
-
-    if (!responseData.candidates || !responseData.candidates[0].content.parts[0].text) {
-        console.error('Unexpected Gemini API response structure:', responseData);
-        return { statusCode: 500, body: JSON.stringify({ message: 'Invalid response from AI service.' }) };
-    }
-    
-    const jsonText = responseData.candidates[0].content.parts[0].text;
+    const jsonText = response.text;
 
     return {
       statusCode: 200,

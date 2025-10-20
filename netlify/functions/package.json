@@ -1,0 +1,8 @@
+{
+  "name": "plant-md-api",
+  "version": "1.0.0",
+  "description": "Netlify function dependencies for Plant-MD",
+  "dependencies": {
+    "@google/genai": "^0.14.0"
+  }
+}
